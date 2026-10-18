@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vega-pareah-sdk"
+version = "0.1.0"
+description = "PAREAH adapter handshake, quarantine, and PRE/PEAK/runtime/server/model cards."
+requires-python = ">=3.10"
+dependencies = ["cryptography>=42", "vega-custody-sdk", "vega-governance-jacket-sdk", "vega-superproof-sdk"]
+license = {file = "LICENSE"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
