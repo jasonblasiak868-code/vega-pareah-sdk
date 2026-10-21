@@ -2,6 +2,14 @@
 
 ![vega-pareah-sdk](assets/tile.svg)
 
+<!-- vega-install-order -->
+> **Build order: 4/4. This kit needs 3 other Vega kits installed first.** Install them in this order, then this one:
+> 1/4 `vega-custody-sdk`  
+> 2/4 `vega-governance-jacket-sdk`  
+> 3/4 `vega-superproof-sdk`  
+> 4/4 `vega-pareah-sdk` (this kit)
+> Install each with `pip install --no-deps git+https://github.com/jasonblasiak868-code/<name>` in the order shown, plus `pip install cryptography`. Full steps: [INTEGRATION_GUIDE](https://github.com/jasonblasiak868-code/vega-umbrella-sdk/blob/main/INTEGRATION_GUIDE.md).
+
 The doorway for any external adapter. PAREAH owns the fixed handshake that every adapter must pass, the card types that describe what an adapter is and what it may do, and the quarantine that tests inbound code before it ever touches the owner's system. An unannounced visitor is held in a dead-end room that holds nothing, answers from a fixed script, and can reach nothing — so an unknown agent learns nothing and takes nothing.
 
 > **Licensing.** Source-available, not open source. Free for personal use; free for registered small businesses (under US$1M revenue and valuation); everyone else needs a commercial license (see LICENSE; for a commercial license write to jasonblasiak.ai.mail@gmail.com). Patent pending. Draft licence text, not yet reviewed by an attorney.
