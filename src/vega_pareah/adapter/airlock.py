@@ -22,9 +22,11 @@ owner's rights it will not use the door, so the adapter must be the only route (
 A careful intruder can recognise a dead end and leave; the room works best on automated and curious agents. The room cannot
 identify a remote model from its weights; it can only measure behaviour. Announcements are held in memory: a restart needs
 them signed again (used announcements stay used, because that record is in the chain)."""
+import functools
 import hashlib
 import re
 import secrets
+import threading
 import time
 
 from cryptography.exceptions import InvalidSignature
@@ -65,6 +67,16 @@ RULES = {
 
 class AirlockRefused(Exception):
     pass
+
+
+def _serial(fn):
+    """The door handles one arrival, announcement or release at a time: matching an arrival to an announcement and burning that announcement are one step, so a single-use
+    announcement can never admit two visitors."""
+    @functools.wraps(fn)
+    def inner(self, *a, **k):
+        with self._lock:
+            return fn(self, *a, **k)
+    return inner
 
 
 def _sha(*parts) -> str:
@@ -141,6 +153,7 @@ class Airlock:
         if not isinstance(door_id, str) or not door_id:
             raise AirlockRefused("the door needs an identity of its own")
         self.commit, self.ledger, self.dag, self.door_id, self._clock = commit, ledger, dag, door_id, clock
+        self._lock = threading.RLock()
         self._ann = {}                                                  # announcement id -> record
         self._used = {e["payload"]["announcement"] for e in dag.content.entries() if e["kind"] == "AIRLOCK_EXPECTED_USED"}
         self._challenges = {}                                           # challenge -> expiry
@@ -148,6 +161,7 @@ class Airlock:
         self.overflow = 0
 
     # ---- the owner's side -------------------------------------------------------------------------------
+    @_serial
     def announce(self, expect_public: str, signed: dict, card_hash: str = "", not_before: int = 0) -> str:
         """The owner pre-announces a handshake. Needs the human's signed commitment for exactly these parameters."""
         if not isinstance(expect_public, str) or not _HEX64.match(expect_public):
@@ -160,11 +174,12 @@ class Airlock:
         params = {"expect_public": expect_public, "card_hash": card_hash, "not_before": not_before}
         out = self.commit.commit(ANNOUNCE_ACTION, params, signed, route="human")
         ann_id = out["commitment"]["nonce_sha256"]
-        self._ann[ann_id] = {"commitment": out["commitment"], "public": expect_public, "card_hash": card_hash, "not_before": not_before}
         self.dag.record("AIRLOCK_ANNOUNCED", {"announcement": ann_id, "visitor_sha": _sha(expect_public),
                                               "expiry": int(out["commitment"]["expiry"])}, parents=[out["entry"]])
+        self._ann[ann_id] = {"commitment": out["commitment"], "public": expect_public, "card_hash": card_hash, "not_before": not_before}      # matchable only once recorded
         return ann_id
 
+    @_serial
     def release(self, visitor_public: str, signed: dict) -> dict:
         """The owner lets one locked-in visitor key go (its room is closed and forgotten). Human commitment required."""
         if not isinstance(visitor_public, str) or not _HEX64.match(visitor_public):
@@ -176,6 +191,7 @@ class Airlock:
                                              "room": room.summary() if room else None}, parents=[out["entry"]])
         return {"released": room is not None}
 
+    @_serial
     def inspect(self, visitor_public: str):
         room = self._rooms.get(_sha(visitor_public))
         return room.summary() if room else None
@@ -186,6 +202,7 @@ class Airlock:
             del self._ann[k]
 
     # ---- the door ------------------------------------------------------------------------------------------
+    @_serial
     def challenge(self) -> str:
         """A fresh single-use challenge for one arrival. Outstanding challenges are capped; the oldest drop first."""
         now = self._clock()
@@ -197,6 +214,7 @@ class Airlock:
         self._challenges[c] = now + CHALLENGE_TTL
         return c
 
+    @_serial
     def admit(self, arrival) -> dict:
         """Returns {'status': 'EXPECTED', 'announcement': id} or {'status': 'TRAPPED', 'room': Room, 'reason': code}.
         The reason code is for the owner's record; it is never shown to the visitor."""

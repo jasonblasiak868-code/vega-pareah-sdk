@@ -270,6 +270,6 @@ python tests/redteam_2_cards_handshake_peak.py
 python tests/redteam_3_airlock.py
 ```
 
-Passing means: all 163 tests pass (per STATUS.md); the fixed handshake sequence runs in order; union commitments cannot be replayed; adapter cards enforce license policy at gate time; PRE expiry and scope are enforced; PEAK jobs are frozen and stop on first failure; quarantine scans and probes record verdicts; airlock traps unannounced visitors in dead-end rooms; license policy gates adopt_by_reference.
+Passing means: all 168 tests pass (per STATUS.md); the fixed handshake sequence runs in order; union commitments cannot be replayed; adapter cards enforce license policy at gate time; PRE expiry and scope are enforced; PEAK jobs are frozen and stop on first failure; quarantine scans and probes record verdicts; airlock traps unannounced visitors in dead-end rooms; license policy gates adopt_by_reference.
 
 Passing does NOT mean: production-hardened; independently security-reviewed; cryptographically expert-reviewed; OS-level containment; legal compliance of license interpretations; hardware cards built.

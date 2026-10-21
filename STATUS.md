@@ -5,7 +5,7 @@
 - adapter
 - cards
 
-Tests: 163 tests in 5 files, all passing.
+Tests: 168 tests in 6 files, all passing.
 
 ## DESIGNED ONLY (not built)
 

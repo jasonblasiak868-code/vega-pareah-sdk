@@ -98,6 +98,9 @@ class PreDeck:
     def revoke(self, card_hash: str):
         self._revoked.add(card_hash)
 
+    def is_revoked(self, card_hash: str) -> bool:
+        return card_hash in self._revoked
+
     def permits(self, card_hash: str, action: str, resource: str) -> bool:
         card = self._cards.get(card_hash)
         return card is not None and card_hash not in self._revoked and permits(card, action, resource)

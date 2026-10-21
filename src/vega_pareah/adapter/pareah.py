@@ -132,9 +132,10 @@ def gate_exit(conn, request_capsule: dict, response_data) -> dict:
 
 
 class Connection:
-    def __init__(self, card, pre_card, adapter_fn, commitment, ledger, dag, clock=time.time):
+    def __init__(self, card, pre_card, adapter_fn, commitment, ledger, dag, clock=time.time, pre_deck=None):
         self.card, self.pre, self._fn = card, pre_card, adapter_fn
         self.commitment, self.ledger, self.dag, self._clock = commitment, ledger, dag, clock
+        self.pre_deck = pre_deck                        # a PreDeck: a PRE revoked there stops working on this open connection at its next call
 
     def _deny(self, side, reason):
         try:
@@ -144,6 +145,8 @@ class Connection:
         raise PareahRefused(reason)
 
     def _live(self):
+        if self.pre_deck is not None and self.pre_deck.is_revoked(self.pre["card_hash"]):
+            self._deny("lease", "the PRE has been revoked")
         if int(self._clock()) >= int(self.commitment["expiry"]):
             self._deny("lease", "union commitment expired; the hug must be renewed by the human")
         if not self.ledger.verify(self.commitment):
@@ -159,8 +162,9 @@ class Connection:
 
 
 class Pareah:
-    def __init__(self, commit, ledger, dag, clock=time.time, airlock=None):
+    def __init__(self, commit, ledger, dag, clock=time.time, airlock=None, pre_deck=None):
         self.commit, self.ledger, self.dag, self._clock, self.airlock = commit, ledger, dag, clock, airlock
+        self.pre_deck = pre_deck                        # optional PreDeck: revoked PREs are refused at grant and stop working on open connections
 
     def _door(self, end_a, end_b, arrival):
         """Door 1. When an airlock is fitted EVERY connection passes it first; there is no way to ask for one without.
@@ -183,6 +187,8 @@ class Pareah:
                     if not isinstance(card, dict) or not isinstance(card.get("adapter_id"), str):
                         raise PareahRefused("adapter card has no adapter_id")
                     pre_mod.verify_pre(pre_card, self._clock())
+                    if self.pre_deck is not None and self.pre_deck.is_revoked(pre_card["card_hash"]):
+                        raise PareahRefused("the PRE has been revoked")
                     if not pre_mod.permits(pre_card, CONNECT_ACTION, card["adapter_id"], self._clock()):
                         raise PareahRefused("PRE does not grant connecting this adapter")
                 elif step == "handshake":
@@ -196,7 +202,7 @@ class Pareah:
                     state["mode"] = "adopt_by_reference" if card["policy"]["adopt_by_reference"] else "reference_only"
                 elif step == "sdk_wrap":
                     conn = Connection(card, pre_card, adapter_fn, state["union"]["commitment"], self.ledger,
-                                      self.dag, self._clock)
+                                      self.dag, self._clock, self.pre_deck)
                 elif step == "gate":
                     conn._live()
             except Exception as exc:  # any failure at any step fails closed and is recorded, never a raw KeyError/TypeError

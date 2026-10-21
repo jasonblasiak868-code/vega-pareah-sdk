@@ -111,7 +111,7 @@ print(pre.permits(pre_card, "echo", "/etc/passwd"))     # False (outside scope)
 
 ## Tests
 
-163 tests in 5 files, all passing (per STATUS.md). Run each file in `tests/` with `src/` of this repo and its dependencies on PYTHONPATH:
+168 tests in 6 files, all passing (per STATUS.md). Run each file in `tests/` with `src/` of this repo and its dependencies on PYTHONPATH:
 
 ```bash
 python tests/test_pareah.py
@@ -128,3 +128,9 @@ The automated review (REVIEW.md) reports 111 tests across 4 test files + 2 redte
 Reference implementation, work in progress, not independently security-reviewed, cryptography not expert-reviewed. The licence text is a draft not yet reviewed by an attorney.
 
 This kit details one branch of a broader filed architecture. The remaining branches are the subject of filed disclosures and are outside the scope of this repository.
+
+## Added limits and changes, 2026-10-20
+
+- **The handshake runs in one process.** The six-step sequence signs with the two `End` objects the caller supplies. It proves those signers hold their keys. It does not authenticate a remote party over a network: for that, the remote end's real signer (a TPM, a hardware token, a service) must sit behind the `End` interface.
+- **PRE revocation is now wired.** `PreDeck.revoke()` existed but nothing consulted it. Pass `Pareah(..., pre_deck=deck)`: a revoked PRE is refused at the grant step, and an open connection stops at its next call.
+- **The airlock handles one arrival at a time**, so a single-use announcement cannot admit two visitors.
