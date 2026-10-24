@@ -124,8 +124,11 @@ def gate_exit(conn, request_capsule: dict, response_data) -> dict:
         capsule_mod.verify(request_capsule)
     except capsule_mod.CapsuleError as exc:
         conn._deny("exit", f"request capsule invalid: {exc}")
-    resp = capsule_mod.make(response_data, {"adapter": conn.card["adapter_id"], "direction": "exit"},
-                            predecessor=request_capsule["prefix_hash"])
+    try:
+        resp = capsule_mod.make(response_data, {"adapter": conn.card["adapter_id"], "direction": "exit"},
+                                predecessor=request_capsule["prefix_hash"])
+    except capsule_mod.CapsuleError as exc:
+        conn._deny("exit", f"adapter response cannot be capsuled (it must be text or bytes): {exc}")      # recorded, and a PareahRefused like every other denial
     conn.dag.record("PAREAH_CALL", {"adapter": conn.card["adapter_id"],
                                     "request": request_capsule["prefix_hash"], "response": resp["prefix_hash"]})
     return resp
@@ -169,6 +172,8 @@ class Pareah:
     def _door(self, end_a, end_b, arrival):
         """Door 1. When an airlock is fitted EVERY connection passes it first; there is no way to ask for one without.
         The door's own identity can never be an end of a real connection (the room's line and the real egress stay separate)."""
+        if not isinstance(end_a, End) or not isinstance(end_b, End):
+            raise PareahRefused("both ends of a connection must be End objects")
         if end_b.end_id == self.airlock.door_id or end_a.end_id == self.airlock.door_id:
             raise PareahRefused("the door's identity cannot be an end of a connection")
         if isinstance(arrival, dict) and arrival.get("public") != end_a.public.hex():
