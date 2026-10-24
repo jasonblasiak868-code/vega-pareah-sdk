@@ -118,6 +118,10 @@ Everything else stays held. Nothing is lost silently: an item too big to keep is
 
 A connection is not just refused after its commitment ends; it is torn down. At the union commitment's expiry a timer closes the link with no further call needed, and `PreDeck.revoke(card_hash)` closes every open link running under that PRE at once. Closing drops the adapter function, cancels the timer, and records one `PAREAH_LINK_CLOSED` entry (closing twice records once). `conn.close(reason)` lets the owner close it by hand. A call on a closed link is a recorded refusal. Limit: this closes the in-process link; an adapter running as its own process or on another machine is closed only if it is launched inside the Windows box, which is killed with the link.
 
+## Heartbeat and probe
+
+`vega_pareah.adapter.pulse` adds eyes with no authority. A **Watcher** sends the adapter side a fresh random challenge; a **Responder** holding the adapter end's key signs the challenge, the time and its own state. The watcher accepts only a valid signature from that key, a fresh time, and a link that is not reporting itself closed; an old answer replayed for a new challenge fails. Every pulse goes to its own pulse chain, the main chain gets a summary every N pulses and any failure at once, and silence (no good pulse inside `max_silence`) is an alarm recorded once per episode. Pulses run on a random schedule. `probe_connection(conn, ("action", "resource"))` tests a connection's front gate on a copy that writes nothing and never reaches the adapter: one request that must pass and three that must be refused (outside the PRE's scope, a tampered capsule, an undeclared action); a gate that lets a bad one through is reported and recorded. Limits: a pulse proves the key holder answered just now, not that the adapter behaves; run the watcher in a separate process or machine, because a compromised process can silence its own watcher.
+
 ## What it does NOT do
 
 - The quarantine is process containment, not an operating-system sandbox: run hostile code in a VM or container.
