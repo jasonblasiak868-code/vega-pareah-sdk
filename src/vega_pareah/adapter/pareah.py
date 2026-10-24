@@ -16,6 +16,7 @@ import json
 import os
 import secrets
 import sys
+import threading
 import time
 
 from cryptography.exceptions import InvalidSignature
@@ -138,7 +139,40 @@ class Connection:
     def __init__(self, card, pre_card, adapter_fn, commitment, ledger, dag, clock=time.time, pre_deck=None):
         self.card, self.pre, self._fn = card, pre_card, adapter_fn
         self.commitment, self.ledger, self.dag, self._clock = commitment, ledger, dag, clock
-        self.pre_deck = pre_deck                        # a PreDeck: a PRE revoked there stops working on this open connection at its next call
+        self.pre_deck = pre_deck                        # a PreDeck: a PRE revoked there closes this open connection at once
+        self.closed, self.closed_reason, self._timer, self._close_lock = False, None, None, threading.Lock()
+
+    def _close(self, reason):
+        """The link itself is torn down (not just refused at the next call): the adapter function is dropped, the timer is cancelled, and the closing is recorded once."""
+        with self._close_lock:
+            if self.closed:
+                return
+            self.closed, self.closed_reason, self._fn = True, reason, None
+            if self._timer is not None:
+                self._timer.cancel()
+        try:
+            self.dag.record("PAREAH_LINK_CLOSED", {"adapter": self.card["adapter_id"], "reason": reason})
+        except DagError:
+            pass  # reviewed: the link is already closed in memory; a record that cannot be written never reopens it
+
+    def close(self, reason="closed by the owner of this connection"):
+        self._close(reason)
+
+    def _arm_timer(self):
+        """Closes the link when its union commitment expires, without waiting for another call. The clock is re-read when the timer fires, so a test clock that jumps is handled."""
+        def fire():
+            if self.closed:
+                return
+            left = int(self.commitment["expiry"]) - int(self._clock())
+            if left <= 0:
+                self._close("union commitment expired")
+            else:
+                self._timer = threading.Timer(min(left, 60) + 0.05, fire)
+                self._timer.daemon = True
+                self._timer.start()
+        self._timer = threading.Timer(max(0.05, min(int(self.commitment["expiry"]) - int(self._clock()), 60) + 0.05), fire)
+        self._timer.daemon = True
+        self._timer.start()
 
     def _deny(self, side, reason):
         try:
@@ -148,17 +182,25 @@ class Connection:
         raise PareahRefused(reason)
 
     def _live(self):
+        if self.closed:
+            self._deny("lease", "the link is closed (%s)" % self.closed_reason)
         if self.pre_deck is not None and self.pre_deck.is_revoked(self.pre["card_hash"]):
+            self._close("the PRE has been revoked")
             self._deny("lease", "the PRE has been revoked")
         if int(self._clock()) >= int(self.commitment["expiry"]):
+            self._close("union commitment expired")
             self._deny("lease", "union commitment expired; the hug must be renewed by the human")
         if not self.ledger.verify(self.commitment):
+            self._close("union commitment no longer verifies in the ledger")
             self._deny("lease", "union commitment no longer verifies in the ledger")
 
     def call(self, request_capsule: dict) -> dict:
         gate_entry(self, request_capsule)
+        fn = self._fn
+        if fn is None:
+            self._deny("lease", "the link is closed (%s)" % self.closed_reason)
         try:
-            out = self._fn(capsule_mod.data_of(request_capsule))
+            out = fn(capsule_mod.data_of(request_capsule))
         except Exception as exc:
             self._deny("adapter", f"adapter raised {type(exc).__name__}")
         return gate_exit(self, request_capsule, out)
@@ -208,6 +250,9 @@ class Pareah:
                 elif step == "sdk_wrap":
                     conn = Connection(card, pre_card, adapter_fn, state["union"]["commitment"], self.ledger,
                                       self.dag, self._clock, self.pre_deck)
+                    if self.pre_deck is not None:
+                        self.pre_deck.attach(pre_card["card_hash"], conn)                   # a revoke on the deck closes this link at once
+                    conn._arm_timer()
                 elif step == "gate":
                     conn._live()
             except Exception as exc:  # any failure at any step fails closed and is recorded, never a raw KeyError/TypeError

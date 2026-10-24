@@ -114,6 +114,10 @@ print(pre.permits(pre_card, "echo", "/etc/passwd"))     # False (outside scope)
 
 Everything else stays held. Nothing is lost silently: an item too big to keep is recorded by hash with `body_kept: false`. The chain holds ids and hashes only. Collection rules live in memory, so after a restart everything is held until the human authorizes again (fail closed). Limits: the separation is only physical if the consumer cannot read the holding folder (run it in the Windows box, with the holding folder outside the folders the box is given); a validator can check shape and range, not honesty, so allow numbers and fixed choices and not free text a model might read as instructions.
 
+## The link closes for real
+
+A connection is not just refused after its commitment ends; it is torn down. At the union commitment's expiry a timer closes the link with no further call needed, and `PreDeck.revoke(card_hash)` closes every open link running under that PRE at once. Closing drops the adapter function, cancels the timer, and records one `PAREAH_LINK_CLOSED` entry (closing twice records once). `conn.close(reason)` lets the owner close it by hand. A call on a closed link is a recorded refusal. Limit: this closes the in-process link; an adapter running as its own process or on another machine is closed only if it is launched inside the Windows box, which is killed with the link.
+
 ## What it does NOT do
 
 - The quarantine is process containment, not an operating-system sandbox: run hostile code in a VM or container.

@@ -88,15 +88,25 @@ class PreDeck:
     """A set of PRE cards with revocation. Revoked cards never permit anything."""
 
     def __init__(self):
-        self._cards, self._revoked = {}, set()
+        self._cards, self._revoked, self._attached = {}, set(), {}
 
     def add(self, card: dict) -> str:
         verify_pre(card)
         self._cards[card["card_hash"]] = card
         return card["card_hash"]
 
+    def attach(self, card_hash: str, link):
+        """Registers an open link (anything with a close(reason) method) that runs under this PRE; revoking the PRE closes it immediately. Held weakly: a dropped link is forgotten."""
+        import weakref
+        self._attached.setdefault(card_hash, weakref.WeakSet()).add(link)
+
     def revoke(self, card_hash: str):
         self._revoked.add(card_hash)
+        for link in list(self._attached.get(card_hash, ())):
+            try:
+                link.close("the PRE has been revoked")
+            except Exception:  # noqa: BLE001 - one link failing to close must not stop the others; each also refuses at its next call
+                pass
 
     def is_revoked(self, card_hash: str) -> bool:
         return card_hash in self._revoked
