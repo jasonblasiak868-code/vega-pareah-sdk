@@ -3,9 +3,10 @@
 ## BUILT and tested
 
 - adapter
+- data airlock: inbound data recorded and held apart; released only under a collection commitment or a signed batch hash; 15 tests, 10 of 10 mutations caught
 - cards
 
-Tests: 168 tests in 6 files, all passing.
+Tests: 183 tests in 7 files, all passing.
 
 ## DESIGNED ONLY (not built)
 

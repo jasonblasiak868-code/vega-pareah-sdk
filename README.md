@@ -105,6 +105,15 @@ print(pre.permits(pre_card, "echo", "/work/file.txt"))  # True
 print(pre.permits(pre_card, "echo", "/etc/passwd"))     # False (outside scope)
 ```
 
+## The inbound data airlock
+
+`vega_pareah.adapter.data_airlock.DataAirlock` is the default-closed door for data from outside (a price feed, a sensor, another system). Nothing enters: every item that arrives is **recorded** (source, sequence, SHA-256, size, time) on the chain and **held apart** in a folder the governed side does not read. Data reaches the governed side only two ways:
+
+1. **A collection commitment.** The human signs `collect_data` for {source, window, max items, max bytes, validator name}. Inside that window and those limits, and only if the named deterministic validator accepts it, each item is admitted and handed on at once and still recorded. This suits feeds that change all day: the commitment names the act of collecting, not every value.
+2. **A batch release.** The human reads `preview()` of what is held and signs `release_data_batch` for {source, batch hash, count}. Exactly that batch is handed on, once; a held file changed on disk since it was recorded is never released.
+
+Everything else stays held. Nothing is lost silently: an item too big to keep is recorded by hash with `body_kept: false`. The chain holds ids and hashes only. Collection rules live in memory, so after a restart everything is held until the human authorizes again (fail closed). Limits: the separation is only physical if the consumer cannot read the holding folder (run it in the Windows box, with the holding folder outside the folders the box is given); a validator can check shape and range, not honesty, so allow numbers and fixed choices and not free text a model might read as instructions.
+
 ## What it does NOT do
 
 - The quarantine is process containment, not an operating-system sandbox: run hostile code in a VM or container.
