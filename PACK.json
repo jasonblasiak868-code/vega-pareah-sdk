@@ -1,0 +1,14 @@
+{
+ "pack": "PACK-PROOF-NEED",
+ "repo": "vega-pareah-sdk",
+ "members": [
+  "vega-pareah-sdk",
+  "vega-proof-of-need-sdk",
+  "vega-two-gate-sdk",
+  "vega-whitepapers"
+ ],
+ "requires": [],
+ "dkg_anchor": "DKG-REPO-PACKS-20261113",
+ "version": "v0.1",
+ "disclosed": "2026-11-13"
+}
